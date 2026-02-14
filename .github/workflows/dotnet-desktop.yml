@@ -1,0 +1,54 @@
+name: Build SecHex Spoofy EXE
+
+on:
+  push:
+    tags:
+      - 'v*' # Chạy khi bạn push tag mới (v1.0, v1.1...)
+  workflow_dispatch: # Cho phép bấm nút chạy thủ công
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x' # Đảm bảo đúng version project sử dụng
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Publish EXE
+      # -p:PublishSingleFile=true: Gom tất cả vào 1 file exe
+      # -p:SelfContained=true: Đính kèm luôn cả Runtime .NET (chạy máy nào cũng được)
+      # -r win-x64: Build cho Windows 64-bit
+      run: |
+        dotnet publish SecHex-Spoofy/SecHex-Spoofy.csproj `
+          -c Release `
+          -r win-x64 `
+          --self-contained true `
+          -p:PublishSingleFile=true `
+          -p:PublishReadyToRun=true `
+          -p:IncludeNativeLibrariesForSelfExtract=true `
+          -o ./publish
+
+    - name: Rename Output
+      run: mv ./publish/SecHex-Spoofy.exe ./publish/SecHex-Spoofy-v${{ github.ref_name }}.exe
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: SecHex-Spoofy-Binary
+        path: ./publish/*.exe
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v2
+      with:
+        files: ./publish/*.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
