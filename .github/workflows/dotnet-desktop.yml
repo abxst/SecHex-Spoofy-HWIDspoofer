@@ -1,9 +1,10 @@
-name: Build SecHex Spoofy EXE
+name: .NET Build EXE
 
 on:
   push:
-    tags:
-      - 'v*' # Chạy khi bạn push tag mới (v1.0, v1.1...)
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
   workflow_dispatch: # Cho phép bấm nút chạy thủ công
 
 jobs:
@@ -13,21 +14,22 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x' # Đảm bảo đúng version project sử dụng
+        dotnet-version: '8.0.x' # Hoặc version bạn đang dùng (6.0, 7.0)
 
-    - name: Restore dependencies
-      run: dotnet restore
+    # Tự động tìm file .csproj đầu tiên nếu bạn không muốn gõ tên thủ công
+    - name: Restore
+      run: dotnet restore $(Get-ChildItem -Recurse -Filter *.csproj | Select-Object -First 1).FullName
 
-    - name: Publish EXE
-      # -p:PublishSingleFile=true: Gom tất cả vào 1 file exe
-      # -p:SelfContained=true: Đính kèm luôn cả Runtime .NET (chạy máy nào cũng được)
-      # -r win-x64: Build cho Windows 64-bit
+    - name: Build and Publish
       run: |
-        dotnet publish SecHex-Spoofy/SecHex-Spoofy.csproj `
+        $projectFile = (Get-ChildItem -Recurse -Filter *.csproj | Select-Object -First 1).FullName
+        dotnet publish $projectFile `
           -c Release `
           -r win-x64 `
           --self-contained true `
@@ -36,19 +38,8 @@ jobs:
           -p:IncludeNativeLibrariesForSelfExtract=true `
           -o ./publish
 
-    - name: Rename Output
-      run: mv ./publish/SecHex-Spoofy.exe ./publish/SecHex-Spoofy-v${{ github.ref_name }}.exe
-
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: SecHex-Spoofy-Binary
+        name: Spoofer-EXE
         path: ./publish/*.exe
-
-    - name: Create Release
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v2
-      with:
-        files: ./publish/*.exe
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
